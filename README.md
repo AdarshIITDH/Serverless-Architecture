@@ -99,4 +99,89 @@ def lambda_handler(event, context):
 ![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/b6e3abb2-830b-4b66-80de-7f97a87e223e)
 
 
+### Task 2: Automated S3 Bucket Cleanup Using AWS Lambda and Boto3
+
+#### Objective: To gain experience with AWS Lambda and Boto3 by creating a Lambda function that will automatically clean up old files in an S3 bucket.
+
+Task: Automate the deletion of files older than 30 days in a specific S3 bucket.
+
+Instructions:
+1. S3 Setup:
+
+- Navigate to the S3 dashboard and create a new bucket.
+- Upload multiple files to this bucket, ensuring that some files are older than 30 days (you may need to adjust your system's date temporarily for this or use old files).
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4a03052e-0d1f-472e-98c5-332efeed86ba)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/02f99481-33b9-444a-8e93-f68c90347da1)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4e693ac8-7f35-4b7b-8e46-6aa4eda4421b)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/af802036-cdd4-4509-bad8-40101a6125f3)
+
+
+2. Lambda IAM Role:
+- In the IAM dashboard, create a new role for Lambda.
+- Attach the `AmazonS3FullAccess` policy to this role. (Note: For enhanced security in real-world scenarios, use more restrictive permissions.)
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/aa959863-f6d9-4340-ad6a-674ff000db7d)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4ac843e3-05f9-412f-94bd-3c6e9bf8ad75)
+
+3. Lambda Function:
+- Navigate to the Lambda dashboard and create a new function.
+- Choose Python 3.x as the runtime.
+- Assign the IAM role created in the previous step.
+- Write the Boto3 Python script to:
+     1. Initialize a boto3 S3 client.
+     2. List objects in the specified bucket.
+     3. Delete objects older than 30 days.
+     4. Print the names of deleted objects for logging purposes.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/f7ef010c-df33-4496-8866-8ab0c3f35dd6)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/a985d859-805d-4483-af48-6fd7d6c76a02)
+
+```
+import json
+import boto3
+from datetime import datetime, timedelta
+def lambda_handler(event, context):
+    s3 = boto3.client('s3')
+    # Get the current date
+    current_date = datetime.now()
+    # Calculate the date 30 days ago
+    thirty_days_ago = current_date - timedelta(days=30)
+    objects = s3.list_objects(Bucket='adarsh-bucket')
+    object_list = [obj['Key'] for obj in objects['Contents']]  # print(object_list)
+    if 'Contents' in objects:
+        for obj in objects['Contents']:
+            object_key = obj['Key']
+            # Get object metadata tags
+            metadata = s3.head_object(Bucket='adarsh-bucket', Key=object_key)
+            metadata_tags = metadata.get('Metadata', {})
+            # print(f"Object Key: {object_key}")        
+            if 'last-modified' in metadata_tags:
+                last_modified_date = datetime.strptime(metadata_tags['last-modified'], '%Y-%m-%d')     
+                # Check if the tag value indicates a date older than 30 days
+                if last_modified_date < thirty_days_ago:
+                    # Delete the object
+                    s3.delete_object(Bucket='adarsh-bucket', Key=object_key)
+                    print(f"Deleted object: {object_key}")
+            if metadata_tags:
+                print("Metadata Tags:")
+                for key, value in metadata_tags.items():
+                    print(f"  {key}: {value}")
+
+```
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/244edc4b-3644-45de-8ed5-67d6d8cd4035)
+
+4. Manual Invocation:
+- After saving your function, manually trigger it.
+- Go to the S3 dashboard and confirm that only files newer than 30 days remain.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/5ab8487b-0714-4db4-a455-84dfb7603d8c)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/8640f4de-bd10-4b96-907c-552bd6c3cac7)
+
+
+
+
+
+
 
