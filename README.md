@@ -181,6 +181,148 @@ def lambda_handler(event, context):
 
 
 
+### Task 3: Automatic EBS Snapshot and Cleanup Using AWS Lambda and Boto3
+#### Objective: To automate the backup process for your EBS volumes and ensure that backups older than a specified retention period are cleaned up to save costs.
+
+Task: Automate the creation of snapshots for specified EBS volumes and clean up snapshots older than 30 days.
+
+Instructions:
+1. EBS Setup:
+- Navigate to the EC2 dashboard and identify or create an EBS volume you wish to back up.
+- Note down the volume ID.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/66238917-5232-4f99-b431-673ff8072e0d)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4c00a0e7-235e-4ab1-90c7-e84de599c803)
+
+2. Lambda IAM Role:
+- In the IAM dashboard, create a new role for Lambda.
+- Attach policies that allow Lambda to create EBS snapshots and delete them (`AmazonEC2FullAccess` for simplicity, but be more restrictive in real-world scenarios).
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/e89f49b8-f534-4ebe-9652-da60b8f61872)
+
+3. Lambda Function:
+- Navigate to the Lambda dashboard and create a new function.
+- Choose Python 3.x as the runtime.
+- Assign the IAM role created in the previous step.
+- Write the Boto3 Python script to:
+     1. Initialize a boto3 EC2 client.
+     2. Create a snapshot for the specified EBS volume.
+     3. List snapshots and delete those older than 30 days.
+     4. Print the IDs of the created and deleted snapshots for logging purposes.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4da26a06-b574-4858-9921-e03f48cd1031)
+
+```
+import json
+import boto3
+from datetime import datetime, timedelta, timezone
+
+def lambda_handler(event, context):
+    # Initialize a Boto3 EC2 client
+    ec2 = boto3.client('ec2')
+    # Specify the EBS volume ID for which you want to create a snapshot
+    volume_id = 'vol-0bb16ec4917256c7c'
+    # Create a snapshot for the specified EBS volume
+    snapshot = ec2.create_snapshot(
+        VolumeId=volume_id,
+        Description=f'Snapshot for EBS volume {volume_id}'
+    )
+    # Print the snapshot ID for logging purposes
+    snapshot_id = snapshot['SnapshotId']
+    print(f"Snapshot ID: {snapshot_id}")
+    
+    # List snapshots for the specified volume
+    snapshots = ec2.describe_snapshots(Filters=[{'Name': 'volume-id', 'Values': [volume_id]}])
+
+    # Calculate the date 30 days ago
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)    
+    
+    # Iterate through the snapshots
+    for snapshot in snapshots['Snapshots']:
+        snapshot_id = snapshot['SnapshotId']
+        snapshot_start_time = snapshot['StartTime']
+
+        # Check if the snapshot is older than 30 days
+        if snapshot_start_time < thirty_days_ago:
+            # Delete the snapshot
+            ec2.delete_snapshot(SnapshotId=snapshot_id)
+            print(f"Deleted Snapshot ID: {snapshot_id}")
+
+    # Return the IDs of the created and deleted snapshots
+    return {
+        'statusCode': 200,
+        'body': {
+            'created_snapshot_id': snapshot_id,
+            'deleted_snapshot_ids': [snapshot['SnapshotId'] for snapshot in snapshots['Snapshots'] if snapshot['StartTime'] < thirty_days_ago]
+        }
+    }
+
+```
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/476484f9-ffbb-47cd-bbdd-5cf1644f8e87)
+
+4. Manual Invocation:
+- After saving your function, either manually trigger it or wait for the scheduled event.
+- Go to the EC2 dashboard and confirm that the snapshot is created and old snapshots are deleted.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/69ced769-93d5-46d1-a0c8-4ea07eec221c)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4bba0b38-2fa6-40e3-83a3-1fd7e10ad1d2)
+
+
+### Task 4: Load Balancer Health Checker
+#### Objective: Design a Lambda function that checks the health of registered instances behind an Elastic Load Balancer (ELB) and notifies via SNS if any instances are unhealthy.
+
+Instructions:
+1. Create a Lambda function.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/d9e53d0e-c36c-4376-a0e1-060b76db5cde)
+
+2. With Boto3, configure the function to:
+   
+- Check the health of registered instances behind a given ELB.
+- If any instances are found to be unhealthy, publish a detailed message to an SNS topic.
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/81fa5f47-f393-430e-af9c-a41ae8bde3e1)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/ce744ba8-ecc4-4954-b66d-75cdf0312fe3)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/4b2a459f-ddbb-492e-a1e3-85ba40ee684f)
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/c36b3aef-cb5d-4c67-894e-7b0675e98dc3)
+
+```
+import boto3
+def lambda_handler(event, context):
+    # Initialize a Boto3 ELB client
+    elb = boto3.client('elbv2')    
+    # Initialize a Boto3 SNS client
+    sns = boto3.client('sns')
+    # Specify the ARN of the SNS topic you created
+    sns_topic_arn = 'arn:aws:sns:ap-south-1:295397358094:AJAYSNS'
+    # Specify the name of the target ELB
+    elb_name = 'arn:aws:elasticloadbalancing:ap-south-1:295397358094:loadbalancer/app/adarsh-neeraj-lb/b75d821e7370c5cd'
+    # Describe the target group of the ELB
+    target_groups = elb.describe_target_groups(LoadBalancerArn=elb_name)
+    
+    # Iterate through the target groups
+    for target_group in target_groups['TargetGroups']:
+        # Describe the registered instances in the target group
+        instances = elb.describe_target_health(TargetGroupArn=target_group['TargetGroupArn'])    
+        # Check the health of each instance
+        for instance in instances['TargetHealthDescriptions']:
+            if instance['TargetHealth']['State'] != 'healthy':
+                # If an instance is unhealthy, publish a message to the SNS topic
+                message = f"Instance {instance['Target']['Id']} behind ELB {elb_name} is unhealthy."
+                sns.publish(
+                    TopicArn=sns_topic_arn,
+                    Message=message,
+                    Subject="Unhealthy Instance Alert"
+                )
+```
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/d6e7e65c-63b2-493b-9d13-0cf0b598045d)
+
+![image](https://github.com/AdarshIITDH/Serverless-Architecture/assets/60352729/3d174ba7-77d6-45f7-af9a-1efa396cc1f5)
+
+
+
+
+
 
 
 
